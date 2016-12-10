@@ -51,8 +51,9 @@ Temporary Items
 project/project
 project/target
 target
+projects/*/shared
+projects/*/target
 
 # Local files
-src/main/resources/application.conf
-src/main/scala/org/lesserwrong/Sandbox.scala
-
+projects/jvm/src/main/resources/application.conf
+projects/jvm/src/main/scala/org/lesserwrong/Sandbox.scala
