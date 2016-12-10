@@ -3,8 +3,6 @@ package org.lesserwrong.model
 import java.time.Instant
 import java.util.UUID
 
-import org.lesserwrong.model.User._
-
 object User {
   type Name = String
 }
@@ -17,11 +15,15 @@ case class MediaType(value: String) {
 }
 
 /** Post content. The `value` is the exact data input by the user. Any rendering happens clientside. */
-case class Content(value: String, mediaType: String) {
+case class Content(value: String, mediaType: String = "text/markdown") {
   require(mediaType.count(_ == '/') == 1, "Must contain exactly one forward slash")
 }
 
-case class Post(id: Post.Id, parentId: Option[Post.Id], author: User.Name, created: Instant, modified: Instant,
+object Content {
+  implicit val writer = upickle.default.macroW[Content]
+}
+
+case class Post(id: Post.Id, parentId: Option[Post.Id] = None, author: User.Name, created: Instant, modified: Instant,
                 content: Content, votes: Int) {
   def isComment = parentId.isDefined
 }

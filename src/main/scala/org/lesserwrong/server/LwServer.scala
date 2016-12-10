@@ -9,38 +9,40 @@ import akka.http.scaladsl.model._
 import akka.http.scaladsl.server.Directives._
 import akka.stream.ActorMaterializer
 import StatusCodes._
-import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
 import akka.http.scaladsl.marshalling.ToResponseMarshallable
 import akka.http.scaladsl.server.ExceptionHandler
 import akka.http.scaladsl.unmarshalling.Unmarshaller
 import com.typesafe.config.ConfigFactory
+import de.heikoseeberger.akkahttpupickle.UpickleSupport
 import org.lesserwrong.model._
 import org.lesserwrong.store._
-import spray.json.{DefaultJsonProtocol, DeserializationException, JsString, JsValue, JsonFormat, RootJsonFormat}
+import upickle.Js
+import upickle.Js.{Num, Str, Value}
+import upickle.default._
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.async.Async._
 
-trait JsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
-  def via[A, B](to: A => B, from: B => A)(implicit aformat: JsonFormat[A]): JsonFormat[B] =
-    new JsonFormat[B] {
-      override def write(obj: B) = aformat.write(from(obj))
-      override def read(json: JsValue) = to(aformat.read(json))
-    }
+case class A()
+case class Test(id: UUID, parent: Option[UUID] = None)
 
-  // Like `lazyFormat` but with RootJsonFormat type
-  def lazyRootFormat[T](format: => RootJsonFormat[T]) = new RootJsonFormat[T] {
-    lazy val delegate = format
-    def write(x: T) = delegate.write(x)
-    def read(value: JsValue) = delegate.read(value)
+object OptionUPickler extends upickle.AttributeTagged {
+  override implicit def OptionW[T: Writer]: Writer[Option[T]] = Writer {
+    case None    => Js.Null
+    case Some(s) => implicitly[Writer[T]].write(s)
   }
 
-  implicit val uuidFormat = via[String, UUID](UUID.fromString, _.toString)
-  implicit val instantFormat = via[Long, Instant](Instant.ofEpochMilli, _.toEpochMilli)
-  implicit val contentFormat = jsonFormat2(Content)
-  implicit val postFormat = jsonFormat7(Post.apply)
-  implicit val treeFormat: RootJsonFormat[PostTree] = lazyRootFormat(jsonFormat2(PostTree))
-  implicit val voteFormat = jsonFormat3(Vote)
+  override implicit def OptionR[T: Reader]: Reader[Option[T]] = Reader {
+    case Js.Null     => None
+    case v: Js.Value => Some(implicitly[Reader[T]].read.apply(v))
+  }
+}
+
+trait JsonSupport extends UpickleSupport {
+  implicit val instantReadWriter = ReadWriter[Instant](
+    i => Num(i.toEpochMilli),
+    { case Num(d) if d.isWhole => Instant.ofEpochMilli(d.toLong) }
+  )
 
   implicit val uuidUnmarshaller = Unmarshaller.strict(UUID.fromString)
 }
